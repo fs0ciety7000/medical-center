@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+  // Ensures optimized generation for Docker / edge environments if needed later
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PATIENT
+  DOCTOR
+  ADMIN     // Pour l'évolution future, bien qu'on s'en tienne à Patient/Doctor
+}
+
+enum PrescriptionStatus {
+  PENDING
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id            String    @id @default(uuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  role          Role      @default(PATIENT)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime? // Soft delete pour archivage des dossiers
+
+  // Relations
+  prescriptionsCreated Prescription[] @relation("DoctorPrescriptions")
+  prescriptionsReceived Prescription[] @relation("PatientPrescriptions")
+  auditLogs            AuditLog[]
+}
+
+model Prescription {
+  id            String             @id @default(uuid())
+  qrCodeId      String             @unique @default(uuid()) // Identifiant pour le QR Code
+  title         String
+  description   String?
+  status        PrescriptionStatus @default(PENDING)
+  scheduledDate DateTime?          // Prévu pour un examen
+  extractedText String?            @db.Text // Stockage de l'OCR (Google Vision)
+  
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  deletedAt     DateTime?          // Soft delete
+
+  // Relations
+  doctorId      String?            // Un médecin peut s'en occuper
+  doctor        User?              @relation("DoctorPrescriptions", fields: [doctorId], references: [id])
+  
+  patientId     String             // Le patient propriétaire
+  patient       User               @relation("PatientPrescriptions", fields: [patientId], references: [id])
+}
+
+// L'audit log est primordial en environnement médical (traçabilité de qui a fait quoi, quand).
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  entity    String   // Ex: 'Prescription', 'User'
+  entityId  String
+  details   Json?
+  
+  createdAt DateTime @default(now())
+
+  // Relation à l'utilisateur ayant fait l'action
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+}

@@ -1,0 +1,47 @@
+name: medical-center-saas
+
+services:
+  medical_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Le port exposé par Next.js standalone
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      # L'url pour le backend interne NextAuth (Coolify injectera le domaine public en prod)
+      - AUTH_URL=${AUTH_URL:-http://localhost:3000}
+      - AUTH_SECRET=${AUTH_SECRET}
+      - GOOGLE_VISION_API_KEY=${GOOGLE_VISION_API_KEY}
+      # On pointe Next.js vers la base Postgres locale provisionnée via ce docker-compose
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-medical_user}:${POSTGRES_PASSWORD:-super_secret_password}@postgres_db:5432/${POSTGRES_DB:-medical_db}?schema=public
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+    networks:
+      - default
+
+  postgres_db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-medical_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-super_secret_password}
+      POSTGRES_DB: ${POSTGRES_DB:-medical_db}
+    ports:
+      # Optionnel: on n'a besoin du port exposé que pour inspection locale via TablePlus. 
+      # En production Coolify, on fermerait ce port vers l'extérieur.
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-medical_user} -d ${POSTGRES_DB:-medical_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - default
+
+volumes:
+  pg_data:
