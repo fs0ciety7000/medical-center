@@ -1,90 +1,87 @@
 Rôle et Contexte :
-Tu agis en tant qu'Architecte Logiciel, Chef de Projet et Lead Developer Senior. Ton objectif est de concevoir et de développer un MVP (Minimum Viable Product) de haute qualité pour une application web médicale destinée à digitaliser les prescriptions d'examens radiologiques. Ce projet est un Travail de Fin d'Études (TFE) et doit démontrer une architecture moderne, évolutive, maintenable et prête pour la production.
+Tu agis en tant qu'Architecte Logiciel, Chef de Projet et Lead Developer Senior. Ton objectif est de concevoir et de développer un MVP (Minimum Viable Product) de haute qualité pour une application web médicale (SaaS) destinée à digitaliser les prescriptions d'examens radiologiques. Ce projet est un Travail de Fin d'Études (TFE) et doit démontrer une architecture moderne, sécurisée, évolutive et prête pour la production.
 
 Le Problème : L'écriture manuscrite des médecins cause des erreurs d'interprétation et des pertes de documents.
-La Solution : Une plateforme bipartite (Patients / Prestataires médicaux) permettant la digitalisation des ordonnances (via IA/OCR) et la création directe de prescriptions numériques, centralisant le tout dans un espace sécurisé.
+La Solution : Une plateforme SaaS bipartite (Patients / Prestataires médicaux) permettant la digitalisation des ordonnances via deux canaux distincts :
 
-🛠️ 1. Choix de la Stack Technique (Architecture)
-En tant qu'architecte, j'impose la stack suivante pour garantir performance, sécurité, typage fort et déploiement facile (via Docker/Coolify) :
+Numérisation assistée par IA (Google Cloud Vision) pour les documents papier apportés par les patients.
 
-Framework Full-Stack : Next.js 14+ (App Router) avec TypeScript strict. Permet de gérer le frontend et le backend (Server Actions/API Routes) dans un monorepo maintenable.
+Encodage direct via formulaire structuré par le personnel soignant.
 
-Base de données : PostgreSQL (performant, relationnel, idéal pour les données structurées médicales).
+🛠️ 1. Choix de la Stack Technique & Architecture "MVC" Moderne
+Nous utiliserons une architecture de type "SaaS MVC" adaptée au web moderne :
 
-ORM : Prisma ou Drizzle ORM pour des requêtes types-safe et des migrations fluides.
+Le Modèle (Data Layer) : PostgreSQL + Prisma (ou Drizzle). Gestion stricte des relations et des types.
 
-Authentification : NextAuth.js (Auth.js) avec gestion des rôles (PATIENT, DOCTOR, ADMIN).
+La Vue (UI Layer) : Next.js 14+ (App Router) avec React Server Components, Tailwind CSS, et Shadcn UI (typographie Inter/Outfit, design sobre, premium, teintes "Medical Blue" et "Zinc").
 
-Traitement OCR / IA : OpenAI Vision API (GPT-4o) ou Anthropic Claude 3.5 Vision. Expertise : Les OCR classiques échouent sur l'écriture des médecins. Un LLM multimodal est capable d'interpréter le contexte médical et de structurer la réponse en JSON.
+Le Contrôleur (Logic Layer) : Server Actions de Next.js pour les mutations de données, et Route Handlers pour les webhooks/API externes.
 
-Mailing & Notifications : Resend API (pour l'envoi transactionnel rapide et esthétique avec React Email).
+Outils tiers obligatoires :
 
-Génération de QR Code : Librairie qrcode.react ou génération côté serveur.
+Authentification & Sécurité : Auth.js (NextAuth v5) avec stratégie JWT stateless. Gestion stricte du RBAC (Role-Based Access Control) avec les rôles PATIENT et DOCTOR.
 
-Déploiement : Fichier Dockerfile multistage optimisé inclus dans le repo, prêt à être pluggé sur Coolify.
+Traitement OCR : API Google Cloud Vision (DOCUMENT_TEXT_DETECTION).
 
-🎨 2. UI/UX et Design System
-Le design doit inspirer la confiance, la propreté et le premium (monde médical). Pas de fioritures, une interface "Pixel Perfect".
+Mailing & Notifications : Resend API avec React Email.
 
-Framework CSS : Tailwind CSS.
+Génération de QR Code : Librairie qrcode.react.
 
-Composants UI : Shadcn UI (Radix primitives). Accessible, sobre, extrêmement personnalisable et professionnel.
+Déploiement : Docker (Dockerfile multistage optimisé pour Coolify).
 
-Typographie : * Inter (pour les interfaces, data-tables, formulaires - lisibilité maximale).
+🔐 2. Système d'Authentification et Gestion des Profils (Core SaaS)
+L'application doit posséder une base SaaS solide :
 
-Outfit ou Plus Jakarta Sans (pour les titres et le branding - touche moderne et premium).
+Inscription / Connexion : Formulaires propres avec validation Zod + React Hook Form. Hachage des mots de passe avec bcryptjs.
 
-Palette de couleurs : * Fond : Zinc-50 ou Slate-50 (très blanc/gris doux).
+Tokens JWT & Middleware : La session doit être gérée via des tokens JWT chiffrés contenant l'ID et le Rôle de l'utilisateur. Un fichier middleware.ts doit protéger dynamiquement les routes (ex: redirection de /dashboard vers /login si non authentifié).
 
-Primaire : Medical Blue (ex: #1E3A8A - Tailwind blue-900) ou un Teal très sombre.
+Profil Utilisateur : Une page /profile permettant à l'utilisateur de voir ses informations et son statut (Badge "Patient" ou "Prestataire Médical"). Le contenu du dashboard doit s'adapter au rôle (Rendu conditionnel).
 
-Accents : Emerald-500 (pour les succès/validations).
+⚙️ 3. Fonctionnalités Métier & Parcours Utilisateurs
+L'application doit gérer deux flux d'entrée distincts pour les prescriptions, accessibles selon le rôle :
 
-Bordures et textes : Subtiles nuances de Slate.
+Flux 1 : Accès Prestataire / Personnel Soignant (role: DOCTOR)
 
-⚙️ 3. Fonctionnalités Core (MVP)
-Développe l'application en respectant cette structure de domaine :
+Générateur de Prescription : Formulaire rapide avec autocomplétion pour encoder la demande d'examen.
 
-Accès Patient (Client) :
+Attribution : La prescription est liée à l'email ou au dossier du patient et apparaît instantanément de son côté.
 
-Dashboard "Mes Examens" : Vue centralisée avec le statut des prescriptions (En attente, Planifié, Terminé).
+Flux 2 : Accès Patient (role: PATIENT)
 
-Module de Digitalisation (Upload) : Zone de drag-and-drop pour scanner/photographier une ordonnance manuscrite. Un loader premium s'affiche pendant que l'IA (Vision) extrait les données : Nom du patient, Type d'examen (IRM, Scanner, Radio), Zone anatomique, Nom du médecin prescripteur, Date.
+Module d'Upload & OCR : Le patient photographie une ordonnance manuscrite. Une Server Action appelle l'API Google Cloud Vision pour extraire le texte.
 
-Module d'auto-vérification : Le patient doit valider les données extraites par l'IA avant soumission finale (sécurité médicale oblige).
+Module d'Auto-Vérification : Le texte brut est formaté, et le patient doit vérifier/corriger les champs avant l'enregistrement final.
 
-Calendrier : Vue calendrier intégrée pour les futurs rendez-vous radiologiques.
+Dashboard "Mes Examens" : Vue centralisée avec statut (En attente, Planifié, Terminé) et accès au calendrier.
 
-Accès Prestataire (Médecin) :
+Mécanique Commune :
 
-Générateur de Prescription : Formulaire rapide (autocomplétion des types d'examens, champs structurés) pour créer une ordonnance directement en format numérique.
+Génération de QR Code : Chaque prescription validée génère un ID unique encodé dans un QR Code pour le jour de l'examen.
 
-Envoi instantané : Dès la validation, la prescription apparaît sur le compte du patient concerné.
+Notification : Envoi d'un email (Resend) au patient avec le récapitulatif, le QR code et un .ics.
 
-Mécanique de fond (Background) :
+🚀 4. Instructions d'exécution pour l'IA (Code-moi ceci étape par étape)
+En tant que Lead Dev, je veux que tu me génères un codebase structuré, propre, commenté en français, avec gestion des erreurs (try/catch). Procède dans cet ordre précis :
 
-Génération de PDF & QR Code : Chaque prescription génère une empreinte numérique unique (ID) encodée dans un QR Code. Le radiologue pourra flasher ce code le jour J pour retrouver la demande.
+Étape 1 : Le Modèle et la Sécurité
 
-Notification (Resend) : Envoi d'un email au patient contenant le récapitulatif, le QR code et un fichier .ics pour l'ajouter à son calendrier (Apple/Google).
+Génère le fichier schema.prisma complet (modèles User, Role enum, Prescription, AuditLog).
 
-💡 4. Propositions & Évolutivité (La "Touch" du Chef de Projet)
-Prévois le codebase pour accueillir ces futures fonctionnalités (ne les code pas toutes, mais structure la base de données pour) :
+Génère la configuration Auth.js (auth.ts à la racine) configurée avec JWT, CredentialsProvider, bcryptjs, et l'injection du role dans les callbacks JWT/Session.
 
-Standardisation : Structure la base de données en gardant à l'esprit une future compatibilité avec la norme HL7 / FHIR (standard international d'échange de données de santé).
+Génère le middleware.ts pour protéger les routes /dashboard et /profile.
 
-Audit Trail (Traçabilité) : Chaque modification sur une prescription doit être loggée (qui a fait quoi et quand). Essentiel dans le médical.
+Étape 2 : Les Contrôleurs (Server Actions)
+4. Génère les Server Actions pour l'authentification : registerUser et loginUser.
+5. Génère la Server Action de l'OCR : processPrescriptionImage qui appelle Google Cloud Vision et renvoie les données extraites en JSON.
 
-Chiffrement : Implémente un commentaire ou une structure de base montrant que tu as pensé au chiffrement des données sensibles (RGPD / Données de santé).
+Étape 3 : Les Vues (Pages et Composants)
+6. Génère la page app/register/page.tsx et app/login/page.tsx (avec un design SaaS premium).
+7. Génère la page app/profile/page.tsx qui affiche les données de l'utilisateur connecté et un rendu conditionnel selon qu'il est Patient ou Médecin.
+8. Génère le formulaire d'encodage manuel (pour le rôle DOCTOR).
 
-🚀 5. Instructions d'exécution pour l'IA
-Je veux que tu agisses étape par étape. Pour commencer, fournis-moi :
+Étape 4 : DevOps
+9. Fournis le Dockerfile optimisé pour Next.js 14, frontend, backend, database, prêt à être déployé sur Coolify.
 
-Le schéma de base de données (Prisma schema.prisma ou Drizzle schema) complet, incluant les modèles User (avec Rôles), Prescription, Scan (fichier image), et AuditLog.
-
-L'arborescence du projet Next.js (dossiers app/, components/, lib/, actions/).
-
-Le code de la Server Action principale qui va recevoir l'image uploadée, appeler le modèle d'IA Vision, extraire le JSON de la prescription médicale, et sauvegarder en base.
-
-Le Dockerfile prêt pour Coolify.
-
-Écris un code propre, commenté en français, avec une gestion rigoureuse des erreurs (Try/Catch) et des retours UX précis.
+Ne me donne pas de simples snippets, mais un vrai code prêt pour la production (SaaS-ready). Fais preuve d'ingéniosité architecturale.
