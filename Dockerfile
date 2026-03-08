@@ -10,12 +10,12 @@ WORKDIR /app
 COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
 COPY prisma ./prisma/
 
-# Install dependencies (respectant le package manager utilisé)
+# Install dependencies (on installe via npm pur si aucun lockfile n'est présent)
 RUN \
   if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
   elif [ -f package-lock.json ]; then npm ci; \
   elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm i --frozen-lockfile; \
-  else echo "Lockfile not found." && exit 1; \
+  else echo "No lockfile found. Falling back to clean npm install." && npm install; \
   fi
 
 # On génère le client Prisma dès qu'on a les dépendances
