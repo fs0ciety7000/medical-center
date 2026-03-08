@@ -37,7 +37,7 @@ RUN \
   if [ -f yarn.lock ]; then yarn run build; \
   elif [ -f package-lock.json ]; then npm run build; \
   elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm run build; \
-  else echo "Lockfile not found." && exit 1; \
+  else echo "No lockfile found. Falling back to clean npm run build." && npm run build; \
   fi
 
 # Étape 3: Image de production finale (Légère)
