@@ -50,6 +50,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
+# Dépendances système requises par les binaires natifs Prisma (musl + OpenSSL 3)
+RUN apk add --no-cache libc6-compat openssl
+
 # Utilisateur non-root pour la sécurité
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
