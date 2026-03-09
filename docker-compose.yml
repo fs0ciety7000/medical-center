@@ -33,19 +33,10 @@ services:
     # Aucun mapping de port vers l'hôte — Traefik (Coolify) gère le routage
     labels:
       - traefik.enable=true
-      # Route HTTPS principale
-      - traefik.http.routers.medical-app.rule=Host(`${SERVICE_FQDN_APP}`)
-      - traefik.http.routers.medical-app.entrypoints=websecure
-      - traefik.http.routers.medical-app.tls=true
+      - traefik.http.routers.medical-app.rule=Host(`elodie.fs0ciety.org`)
+      - traefik.http.routers.medical-app.entrypoints=https
       - traefik.http.routers.medical-app.tls.certresolver=letsencrypt
-      # Service interne — port 3000
       - traefik.http.services.medical-app.loadbalancer.server.port=3000
-      # Redirection HTTP → HTTPS
-      - traefik.http.routers.medical-app-http.rule=Host(`${SERVICE_FQDN_APP}`)
-      - traefik.http.routers.medical-app-http.entrypoints=web
-      - traefik.http.routers.medical-app-http.middlewares=redirect-to-https
-      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
-      - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
     depends_on:
       postgres_db:
         condition: service_healthy
