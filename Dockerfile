@@ -1,11 +1,7 @@
 # syntax=docker/dockerfile:1
-# ─────────────────────────────────────────────────────────────────────────────
-# Dockerfile multistage optimisé pour Next.js 14 Standalone + Coolify
-# ─────────────────────────────────────────────────────────────────────────────
-
 FROM node:20-alpine AS base
 
-# ── Étape 1 : Installation des dépendances ───────────────────────────────────
+# 1. Install dependencies only when needed
 FROM base AS deps
 RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
@@ -13,7 +9,6 @@ WORKDIR /app
 COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
 COPY prisma ./prisma/
 
-# Installation des dépendances et génération du client Prisma
 RUN \
   if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
   elif [ -f package-lock.json ]; then npm ci; \
@@ -23,16 +18,19 @@ RUN \
 
 RUN npx prisma generate
 
-# ── Étape 2 : Build Next.js (output standalone) ───────────────────────────────
+# 2. Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# DATABASE_URL factice pour le build (Prisma n'est pas contacté au build time)
+# Environment variables must be present at build time
+ENV NEXT_TELEMETRY_DISABLED=1
 ARG DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 ENV DATABASE_URL=${DATABASE_URL}
-ENV NEXT_TELEMETRY_DISABLED=1
+# Dummy URL to allow next-auth to build if referenced
+ENV AUTH_URL="http://localhost:3000"
+ENV AUTH_SECRET="placeholder_secret_for_build"
 
 RUN \
   if [ -f yarn.lock ]; then yarn run build; \
@@ -41,7 +39,7 @@ RUN \
   else npm run build; \
   fi
 
-# ── Étape 3 : Image de production finale (légère) ────────────────────────────
+# 3. Production image, copy all the files and run next
 FROM base AS runner
 WORKDIR /app
 
@@ -50,34 +48,26 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Dépendances système requises par les binaires natifs Prisma (musl + OpenSSL 3)
 RUN apk add --no-cache libc6-compat openssl
 
-# Utilisateur non-root pour la sécurité
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Fichiers statiques publics (mkdir -p au cas où le dossier serait vide)
-RUN mkdir -p ./public
-COPY --from=builder /app/public ./public
-
-# Cache de pré-rendu
+# Set correct permissions for nextjs user
 RUN mkdir -p .next && chown nextjs:nodejs .next
 
-# Copie du build standalone
+# Automatically leverage output traces to reduce image size
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copie de Prisma CLI + migrations pour le script d'entrée
-# Prisma 5.x bundle des fichiers .wasm dans node_modules/.bin/ — on copie tout le répertoire
+# Copy prisma CLI and generated files for runtime execution (entrypoint migrations)
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/.bin ./node_modules/.bin
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
-# bcryptjs requis par le script de seed (même algo que auth.ts)
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
-# Script d'entrée (migrations + démarrage)
 COPY --chown=nextjs:nodejs entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 

@@ -8,29 +8,20 @@ export const authConfig = {
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user
-      const isPublicPath =
-        ["/login", "/register", "/api/auth"].some((path) => nextUrl.pathname.startsWith(path)) ||
-        nextUrl.pathname === "/"
+      const isPublicPath = ["/login", "/register", "/api/auth"].some((path) => nextUrl.pathname.startsWith(path)) || nextUrl.pathname === "/"
 
       if (isLoggedIn) {
-        // Rediriger la page d'accueil ou les pages d'auth vers le dashboard
         if (nextUrl.pathname === "/login" || nextUrl.pathname === "/register" || nextUrl.pathname === "/") {
-          return Response.redirect(new URL("/dashboard", nextUrl))
-        }
-        // Restreindre le dashboard médecin
-        if (nextUrl.pathname.startsWith("/dashboard/doctor") && (auth.user as any)?.role !== "DOCTOR") {
           return Response.redirect(new URL("/dashboard", nextUrl))
         }
         return true
       }
 
-      // Autoriser les pages publiques si non connecté
       if (isPublicPath) {
         return true
       }
 
-      // Rediriger tout le reste vers /login
-      return false
+      return false // Redirige automatiquement vers la page de login configurée
     },
     async jwt({ token, user }) {
       if (user) {
@@ -47,7 +38,7 @@ export const authConfig = {
       return session
     },
   },
-  providers: [], // Configuré dynamiquement dans auth.ts pour éviter d'importer Prisma dans le Middleware
+  providers: [],
   session: { strategy: "jwt" },
   trustHost: true,
 } satisfies NextAuthConfig

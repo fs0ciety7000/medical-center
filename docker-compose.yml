@@ -1,22 +1,5 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# docker-compose.yml — Déploiement Coolify + Traefik
-#
-# Variables d'environnement à configurer dans Coolify :
-#   AUTH_SECRET          → Clé secrète NextAuth (openssl rand -base64 32)
-#   AUTH_URL             → URL publique de l'app (https://medical.example.com)
-#   GOOGLE_VISION_API_KEY → Clé API Google Cloud Vision
-#   RESEND_API_KEY       → Clé API Resend (optionnel)
-#   RESEND_FROM_EMAIL    → Email expéditeur (optionnel, ex: noreply@example.com)
-#   POSTGRES_USER        → Utilisateur PostgreSQL
-#   POSTGRES_PASSWORD    → Mot de passe PostgreSQL (fort !)
-#   POSTGRES_DB          → Nom de la base de données
-#   SERVICE_FQDN_APP     → Injecté automatiquement par Coolify (domaine public)
-# ─────────────────────────────────────────────────────────────────────────────
-
 name: medical-center-saas
-
 services:
-  # ── Application Next.js ───────────────────────────────────────────────────
   medical_app:
     build:
       context: .
@@ -28,9 +11,8 @@ services:
       - AUTH_SECRET=${AUTH_SECRET}
       - GOOGLE_VISION_API_KEY=${GOOGLE_VISION_API_KEY:-}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
-      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-noreply@espace-medical.fr}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-noreply@elodie.fs0ciety.org}
       - DATABASE_URL=${DATABASE_URL}
-    # Aucun mapping de port vers l'hôte — Traefik (Coolify) gère le routage
     labels:
       - traefik.enable=true
       - traefik.http.routers.medical-app.rule=Host(`elodie.fs0ciety.org`)
@@ -43,7 +25,6 @@ services:
     networks:
       - coolify
 
-  # ── Base de données PostgreSQL ────────────────────────────────────────────
   postgres_db:
     image: postgres:15-alpine
     restart: unless-stopped
@@ -51,7 +32,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    # Pas de port exposé vers l'hôte — accessible uniquement en interne
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
