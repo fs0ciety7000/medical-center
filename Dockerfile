@@ -54,11 +54,12 @@ ENV HOSTNAME="0.0.0.0"
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Fichiers statiques publics
+# Fichiers statiques publics (mkdir -p au cas où le dossier serait vide)
+RUN mkdir -p ./public
 COPY --from=builder /app/public ./public
 
 # Cache de pré-rendu
-RUN mkdir .next && chown nextjs:nodejs .next
+RUN mkdir -p .next && chown nextjs:nodejs .next
 
 # Copie du build standalone
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
