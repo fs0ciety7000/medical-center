@@ -2,10 +2,9 @@
 
 import { z } from "zod"
 import bcrypt from "bcryptjs"
-import { signIn } from "@/auth"
+import { auth, signIn } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { AuthError } from "next-auth"
-import { isRedirectError } from "next/dist/client/components/redirect"
 
 // Schémas de validation Zod
 const loginSchema = z.object({
@@ -35,9 +34,7 @@ export async function loginUser(prevState: ActionState, formData: FormData): Pro
 
     return { success: "Connexion réussie." }
   } catch (error) {
-    // Next.js lance une erreur de redirection interne — il faut la laisser passer
-    if (isRedirectError(error)) throw error
-
+    // Ne pas intercepter les erreurs de redirection de Next.js
     if (error instanceof z.ZodError) {
       return { error: error.errors[0].message }
     }
@@ -49,7 +46,8 @@ export async function loginUser(prevState: ActionState, formData: FormData): Pro
           return { error: "Une erreur d'authentification est survenue." }
       }
     }
-    return { error: "Une erreur inattendue est survenue." }
+    // Si c'est autre chose (comme la redirection interne de Next.js), on throw
+    throw error
   }
 }
 
@@ -90,11 +88,10 @@ export async function registerUser(prevState: ActionState, formData: FormData): 
 
     return { success: "Compte créé avec succès." }
   } catch (error) {
-    if (isRedirectError(error)) throw error
-
     if (error instanceof z.ZodError) {
       return { error: error.errors[0].message }
     }
-    return { error: "Une erreur est survenue lors de la création du compte." }
+    // Si c'est autre chose (comme la redirection NEXT_REDIRECT), on throw
+    throw error
   }
 }
