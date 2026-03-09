@@ -14,19 +14,19 @@ const SEED_USERS = [
   {
     name: "Albert Douille",
     email: "patient@demo.local",
-    password: "demo",
+    password: "demo1234",
     role: "PATIENT",
   },
   {
     name: "Dr. Bernard Martin",
     email: "doctor@demo.local",
-    password: "demo",
+    password: "demo1234",
     role: "DOCTOR",
   },
   {
     name: "Admin Système",
     email: "admin@demo.local",
-    password: "demo",
+    password: "demo1234",
     role: "ADMIN",
   },
 ]
