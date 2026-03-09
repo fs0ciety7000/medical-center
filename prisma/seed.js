@@ -12,21 +12,21 @@ const prisma = new PrismaClient()
 
 const SEED_USERS = [
   {
-    name: "Alice Patient",
+    name: "Albert Douille",
     email: "patient@demo.local",
-    password: "Patient123!",
+    password: "demo",
     role: "PATIENT",
   },
   {
     name: "Dr. Bernard Martin",
     email: "doctor@demo.local",
-    password: "Doctor123!",
+    password: "demo",
     role: "DOCTOR",
   },
   {
     name: "Admin Système",
     email: "admin@demo.local",
-    password: "Admin123!",
+    password: "demo",
     role: "ADMIN",
   },
 ]
