@@ -1,47 +1,81 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# docker-compose.yml — Déploiement Coolify + Traefik
+#
+# Variables d'environnement à configurer dans Coolify :
+#   AUTH_SECRET          → Clé secrète NextAuth (openssl rand -base64 32)
+#   AUTH_URL             → URL publique de l'app (https://medical.example.com)
+#   GOOGLE_VISION_API_KEY → Clé API Google Cloud Vision
+#   RESEND_API_KEY       → Clé API Resend (optionnel)
+#   RESEND_FROM_EMAIL    → Email expéditeur (optionnel, ex: noreply@example.com)
+#   POSTGRES_USER        → Utilisateur PostgreSQL
+#   POSTGRES_PASSWORD    → Mot de passe PostgreSQL (fort !)
+#   POSTGRES_DB          → Nom de la base de données
+#   SERVICE_FQDN_APP     → Injecté automatiquement par Coolify (domaine public)
+# ─────────────────────────────────────────────────────────────────────────────
+
 name: medical-center-saas
 
 services:
+  # ── Application Next.js ───────────────────────────────────────────────────
   medical_app:
     build:
       context: .
       dockerfile: Dockerfile
-    # Le port exposé par Next.js standalone
-    ports:
-      - "3000:3000"
+    restart: unless-stopped
     environment:
       - NODE_ENV=production
-      # L'url pour le backend interne NextAuth (Coolify injectera le domaine public en prod)
-      - AUTH_URL=${AUTH_URL:-http://localhost:3000}
+      - AUTH_URL=${AUTH_URL}
       - AUTH_SECRET=${AUTH_SECRET}
-      - GOOGLE_VISION_API_KEY=${GOOGLE_VISION_API_KEY}
-      # On pointe Next.js vers la base Postgres locale provisionnée via ce docker-compose
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-medical_user}:${POSTGRES_PASSWORD:-super_secret_password}@postgres_db:5432/${POSTGRES_DB:-medical_db}?schema=public
+      - GOOGLE_VISION_API_KEY=${GOOGLE_VISION_API_KEY:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-noreply@espace-medical.fr}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres_db:5432/${POSTGRES_DB}?schema=public
+    # Aucun mapping de port vers l'hôte — Traefik (Coolify) gère le routage
+    labels:
+      - traefik.enable=true
+      # Route HTTPS principale
+      - traefik.http.routers.medical-app.rule=Host(`${SERVICE_FQDN_APP}`)
+      - traefik.http.routers.medical-app.entrypoints=websecure
+      - traefik.http.routers.medical-app.tls=true
+      - traefik.http.routers.medical-app.tls.certresolver=letsencrypt
+      # Service interne — port 3000
+      - traefik.http.services.medical-app.loadbalancer.server.port=3000
+      # Redirection HTTP → HTTPS
+      - traefik.http.routers.medical-app-http.rule=Host(`${SERVICE_FQDN_APP}`)
+      - traefik.http.routers.medical-app-http.entrypoints=web
+      - traefik.http.routers.medical-app-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
     depends_on:
       postgres_db:
         condition: service_healthy
     networks:
-      - default
+      - coolify
 
+  # ── Base de données PostgreSQL ────────────────────────────────────────────
   postgres_db:
     image: postgres:15-alpine
-    restart: always
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-medical_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-super_secret_password}
-      POSTGRES_DB: ${POSTGRES_DB:-medical_db}
-    ports:
-      # Optionnel: on n'a besoin du port exposé que pour inspection locale via TablePlus. 
-      # En production Coolify, on fermerait ce port vers l'extérieur.
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # Pas de port exposé vers l'hôte — accessible uniquement en interne
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-medical_user} -d ${POSTGRES_DB:-medical_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
     networks:
-      - default
+      - coolify
 
 volumes:
   pg_data:
+    driver: local
+
+networks:
+  coolify:
+    external: true
