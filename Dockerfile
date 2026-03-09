@@ -73,6 +73,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/.bin ./node_modules/.bin
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+# bcryptjs requis par le script de seed (même algo que auth.ts)
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 # Script d'entrée (migrations + démarrage)
