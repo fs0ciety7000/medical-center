@@ -1,7 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  // Ensures optimized generation for Docker / edge environments if needed later
-  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {

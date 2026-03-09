@@ -1,72 +1,81 @@
 # syntax=docker/dockerfile:1
+# ─────────────────────────────────────────────────────────────────────────────
+# Dockerfile multistage optimisé pour Next.js 14 Standalone + Coolify
+# ─────────────────────────────────────────────────────────────────────────────
+
 FROM node:20-alpine AS base
 
-# Étape 1: Installation des dépendances (cache optimisé)
+# ── Étape 1 : Installation des dépendances ───────────────────────────────────
 FROM base AS deps
 RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
-# Copy package managers files
 COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
 COPY prisma ./prisma/
 
-# Install dependencies (on installe via npm pur si aucun lockfile n'est présent)
+# Installation des dépendances et génération du client Prisma
 RUN \
   if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
   elif [ -f package-lock.json ]; then npm ci; \
   elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm i --frozen-lockfile; \
-  else echo "No lockfile found. Falling back to clean npm install." && npm install; \
+  else npm install; \
   fi
 
-# On génère le client Prisma dès qu'on a les dépendances
 RUN npx prisma generate
 
-# Étape 2: Build de l'application Next.js (Standalone)
+# ── Étape 2 : Build Next.js (output standalone) ───────────────────────────────
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# On s'assure que next.config.js a bien output: "standalone"
-# Ceci permet de drastiquement réduire la taille de l'image finale
-ARG DATABASE_URL
+# DATABASE_URL factice pour le build (Prisma n'est pas contacté au build time)
+ARG DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 ENV DATABASE_URL=${DATABASE_URL}
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN \
   if [ -f yarn.lock ]; then yarn run build; \
   elif [ -f package-lock.json ]; then npm run build; \
   elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm run build; \
-  else echo "No lockfile found. Falling back to clean npm run build." && npm run build; \
+  else npm run build; \
   fi
 
-# Étape 3: Image de production finale (Légère)
+# ── Étape 3 : Image de production finale (légère) ────────────────────────────
 FROM base AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
-# Créer un user non-root pour la sécurité (Standard SaaS Docker)
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Utilisateur non-root pour la sécurité
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
-# Configuration Next.js stand-alone
+# Fichiers statiques publics
 COPY --from=builder /app/public ./public
-# Set les permissions correctes pour le dossier prerender cache
-RUN mkdir .next
-RUN chown nextjs:nodejs .next
 
-# Copier les fichiers générés
+# Cache de pré-rendu
+RUN mkdir .next && chown nextjs:nodejs .next
+
+# Copie du build standalone
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Switch vers l'utilisateur sécurisé
+# Copie de Prisma CLI + migrations pour le script d'entrée
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+
+# Script d'entrée (migrations + démarrage)
+COPY --chown=nextjs:nodejs entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
 USER nextjs
 
 EXPOSE 3000
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
 
-# Démarrer le serveur web interne généré par Next (sans le wrapper NextCLI)
-CMD ["node", "server.js"]
+CMD ["./entrypoint.sh"]
