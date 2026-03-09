@@ -8,8 +8,5 @@ node_modules/.bin/prisma db push --accept-data-loss
 echo "🌱  Seed des comptes initiaux (idempotent)..."
 node prisma/seed.js
 
-echo "🌱  Seed des comptes initiaux (idempotent)..."
-node prisma/seed.js
-
 echo "🚀 Démarrage du serveur Next.js..."
 exec node server.js
