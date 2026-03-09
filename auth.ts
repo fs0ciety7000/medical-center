@@ -3,9 +3,10 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { z } from "zod"
 import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/prisma"
-import type { Role } from "@prisma/client"
+import { authConfig } from "./auth.config"
 
 export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -36,25 +37,5 @@ export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
         }
       }
     })
-  ],
-  callbacks: {
-    async jwt({ token, user }) {
-      // L'objet user est disponible uniquement à la première connexion
-      if (user) {
-        token.id = user.id
-        token.role = user.role as Role
-      }
-      return token
-    },
-    async session({ session, token }) {
-      if (token && session.user) {
-        session.user.id = token.id
-        session.user.role = token.role as Role
-      }
-      return session
-    }
-  },
-  session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
-  trustHost: true,
+  ]
 })
